@@ -1,4 +1,4 @@
-import React, { Component } from 'react'
+import React, { useState } from 'react'
 import Button from '../../../components/UI/Button/Button'
 import Spinner from '../../../components/UI/Spinner/Spinner'
 import classes from './ContactData.module.css'
@@ -7,12 +7,13 @@ import Input from '../../../components/UI/Input/Input'
 import withErrorHandler from '../../../hoc/withErrorHandler/withErrorHandler'
 import * as burgerOrderActions from '../../../redux-store/actions/index'
 
+import { updateObject, checkValidity } from '../../../shared/utilities'
+
 import {connect} from 'react-redux'
 
-class ContactData extends Component {
+const ContactData = (props) => {
 
-    state = {
-        orderForm: {
+    const [stateOrderForm, setStateOrderForm] = useState({
             name: {
                 elementType: 'input',
                 elementConfig: {
@@ -80,66 +81,38 @@ class ContactData extends Component {
                 valid: false,
                 touched: false
             }
-        },
-        formIsValid: false
-    }
+        })
 
-    orderHandler = (event) => {
+    const [stateFormIsValid, setStateFormIsValid] = useState(false);
+
+    const orderHandler = (event) => {
         event.preventDefault();
-        // this.setState({makingRequest: true})
 
         const formData = {};
 
-        for(let formElementIdentifier in this.state.orderForm) {
-            formData[formElementIdentifier] = this.state.orderForm[formElementIdentifier].value;
+        for(let formElementIdentifier in stateOrderForm) {
+            formData[formElementIdentifier] = stateOrderForm[formElementIdentifier].value;
         }
 
         const order = {
-            ingredients: this.props.ings,
-            price: this.props.price,
-            orderData: formData
+            ingredients: props.ings,
+            price: props.price,
+            orderData: formData,
+            userId: props.userId
         }
 
-        this.props.onBurgerOrder(order)
-        // axios.post('/orders.json', order)
-        //     .then(response => {this.setState({makingRequest: false})
-        //                         this.props.history.push('/')})
-        //     .catch(error => {this.setState({makingRequest: false})});
-        
+        props.onBurgerOrder(order, props.token)
     }
 
-    checkValidity = (value, rules) => {
-        let isValid = false;
+    const inputChangeHandler = (event, inputIdentifier) => {
 
-        if(rules.required) {
-            isValid = value.trim() !== '';
-        }
+        const updatedFormElement = updateObject(stateOrderForm[inputIdentifier], 
+                                                {value:event.target.value,
+                                                 valid: checkValidity(event.target.value, 
+                                                                      stateOrderForm[inputIdentifier].validation),
+                                                 touched: true})
 
-        if(rules.minLength) {
-            isValid = value.length >= rules.minLength && isValid;
-        }
-
-        if(rules.maxLength) {
-            isValid = value.length <= rules.maxLength && isValid;
-        }
-
-        return isValid;
-    }
-
-    inputChangeHandler = (event, inputIdentifier) => {
-        const updatedOrderForm = {
-            ...this.state.orderForm
-        };
-
-        const updatedFormElement = {
-            ...updatedOrderForm[inputIdentifier]
-        };
-
-        updatedFormElement.value = event.target.value;
-        updatedFormElement.valid = this.checkValidity(updatedFormElement.value, 
-                                                      updatedFormElement.validation)
-        updatedFormElement.touched = true;
-        updatedOrderForm[inputIdentifier] = updatedFormElement;
+        const updatedOrderForm = updateObject(stateOrderForm, {[inputIdentifier]: updatedFormElement});
 
         let formIsValid = true;
 
@@ -147,22 +120,21 @@ class ContactData extends Component {
             formIsValid = updatedOrderForm[inputElement].valid && formIsValid;
         }
 
-        this.setState({orderForm: updatedOrderForm, formIsValid: formIsValid})
+        setStateOrderForm(updatedOrderForm);
+        setStateFormIsValid(formIsValid);
     }
-
-    render() {
 
         let formElementArray = [];
 
-        for(let key in this.state.orderForm) {
+        for(let key in stateOrderForm) {
             formElementArray.push( {
                 id: key,
-                config: this.state.orderForm[key]
+                config: stateOrderForm[key]
             })
         }
 
         let form = (
-            <form onSubmit={(event) => this.orderHandler(event)}>
+            <form onSubmit={(event) => orderHandler(event)}>
                 {formElementArray.map(formElement => (
                     <Input key={formElement.id}
                            elementType={formElement.config.elementType}
@@ -171,13 +143,13 @@ class ContactData extends Component {
                            shouldValidate={formElement.config.validation.required}
                            invalid={!formElement.config.valid}
                            touched={formElement.config.touched}
-                           changed={(event) => this.inputChangeHandler(event, formElement.id)}/>
+                           changed={(event) => inputChangeHandler(event, formElement.id)}/>
                                     )               )}
-                <Button btnTyp="Success" disabled={!this.state.formIsValid}>Order</Button>
+                <Button btnTyp="Success" disabled={!stateFormIsValid}>Order</Button>
             </form>
         );
 
-        if(this.props.makingRequest) {
+        if(props.makingRequest) {
              form = <Spinner />
         }
 
@@ -187,20 +159,21 @@ class ContactData extends Component {
                 {form}
             </div>
         );
-    }
 }
 
 const mapStateToProps = (state) => {
     return({
         ings: state.burgerBuilder.ingredients,
         price: state.burgerBuilder.price,
-        makingRequest: state.burgerOrder.makingRequest
+        makingRequest: state.burgerOrder.makingRequest,
+        token: state.auth.token,
+        userId: state.auth.userId
     })
 }
 
 const mapDispatchToProps = (dispatch) => {
     return ({
-        onBurgerOrder: (orderData) => dispatch(burgerOrderActions.userPlacingOrder(orderData))
+        onBurgerOrder: (orderData, token) => dispatch(burgerOrderActions.userPlacingOrder(orderData, token))
     })
 }
 
